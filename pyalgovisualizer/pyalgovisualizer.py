@@ -18,12 +18,12 @@ original_set_suspend = pydevd.PyDB.set_suspend
 old_cells_cache = {}
 
 
-def default_visualization_func(frame):
-    print('+' * 20)
-    for var_ in frame.f_locals:
-        value = frame.f_locals[var_]
-        print(var_, '=>', type(value))
-    print('-' * 20)
+# def default_visualization_func(frame):
+#     print('+' * 20)
+#     for var_ in frame.f_locals:
+#         value = frame.f_locals[var_]
+#         print(var_, '=>', type(value))
+#     print('-' * 20)
 
 viscallbacks = {
     # 'default': default_visualization_func
@@ -38,6 +38,73 @@ def tune_axes_for_table(ax):
     plt.box(on=False)
     for ax_ in ax:
         tune_ax_for_table(ax_)
+
+def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
+    global old_cells_cache
+    print(old_cells_cache)
+
+    ax = axes[axn]
+    atable = ax.table(cellText=cellText,
+                        rowLabels=rowLabels,
+                        colLabels=colLabels,
+                        loc='center',
+                )
+    atable.scale(1, 1.6) 
+
+    cells_ = atable.get_celld()
+    for key, cell in cells_.items():
+        cell.set_linewidth(0.2)
+        cell.set_linestyle("dotted")
+        cell.set_text_props(ha="center")
+        cell.set_text_props(backgroundcolor="white")
+        if axn in old_cells_cache:
+            old_text = old_cells_cache[axn][key].get_text().get_text()
+            new_text = cell.get_text().get_text()
+            if old_text != new_text:
+                cell.set_text_props(backgroundcolor="yellow")
+
+    old_cells_cache[axn] = deepcopy(cells_)
+    return atable
+
+
+def table2scalars(axes, axn, locals, varnames):
+    data = []
+    for var_ in varnames:
+        if var_ in locals and locals[var_] is not None:
+            data.append(str(locals[var_]))
+        else:    
+            data.append('')
+
+    return table_for_axn(axes, axn, 
+                [data], 
+                ['value'], 
+                varnames)
+
+
+def table2vectors(axes, axn, locals, varnames):
+    data = []
+    maxlen = 0
+
+    list_ = [False] * len(varnames)
+    for i_, var_ in enumerate(varnames):
+        if var_ in locals:
+            if type(locals[var_])==list or type(locals[var_])==str:
+                list_[i_] = list(locals[var_])
+                maxlen = max(maxlen, len(locals[var_]))
+    if maxlen == 0:
+        return None        
+
+    for i_, var_ in enumerate(varnames):
+        if list_[i_]:
+            data.append(list_[i_] + [''] * (maxlen  - len(locals[var_])))
+        else:    
+            data.append([''] * maxlen)
+
+    return table_for_axn(axes, axn, 
+                data, 
+                varnames, 
+                list(range(maxlen)))
+
 
 
 
@@ -63,7 +130,7 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
         curframe = curframe.f_back
     
     if curframe:
-        print(viscallbacks.keys())
+        # print(viscallbacks.keys())
         for k, v in viscallbacks.items():
             v(curframe)
 
@@ -116,189 +183,3 @@ pydevd.PyDB.set_suspend = my_set_suspend
 
 
 
-
-
-
-
-
-
-
-
-# import ctypes.util
-# original_find_library = ctypes.util.find_library
-
-# def our_find_library(name):
-#     libname = f'lib{name}.so'
-#     return libname
-
-# ctypes.util.find_library = our_find_library
-
-
-# def  our_popen(scmd):
-#     print('Fake!!!')
-#     pass
-
-# preloadso_ = []          
-# LIBDIR = '/lib/x86_64-linux-gnu'  
-# ok_ = False
-
-
-# for LIBDIR in ['/lib64', '/lib/x86_64-linux-gnu', '/lib']:
-#     if os.path.exists(LIBDIR):
-#         for file_ in os.listdir(LIBDIR):
-#             filep_ = os.path.join(LIBDIR, file_)
-#             # print(file_)
-#             if '.so' in file_ and not os.path.islink(filep_) and not 'libthread_db' in file_ and os.path.getsize(filep_)>1024:
-#                 okl_ = False
-#                 # for start_ in ['lib']:
-#                 for start_ in ['libc-', #'libdl-', #'libcap'
-#                               ]:
-#                     okl_ = okl_ or file_.startswith(start_) and not 'libc-client' in file_
-#                     if okl_:
-#                         break
-#                 if okl_:            
-#                     preloadso_.append(filep_)
-#                     ok_ = True    
-#     if ok_:
-#         break                
-
-# LDSO_HOST = ''
-# for p_ in ['/lib64/ld-linux-x86-64.so.2']:
-#     if os.path.exists(p_):
-#         LDSO_HOST = p_     
-#         break
-
-# LD_LIBRARY_PATH = ''
-# if 'LD_LIBRARY_PATH' in os.environ: 
-#     LD_LIBRARY_PATH = os.environ['LD_LIBRARY_PATH'] 
-
-# root_dir = None
-# dirs_ = ['ebin', 'pbin']
-# for dir_name in dirs_:
-#     if dir_name in sys.executable:
-#         root_dir = sys.executable.split(dir_name)[0]
-#         break
-#     if dir_name in sys.argv[0]:
-#         root_dir = sys.argv[0].split(dir_name)[0]
-#         break
-
-
-# class TerraPopen(subprocess.Popen):
-#     """ Execute a child program in a new process.
-
-#     For a complete description of the arguments see the Python documentation.
-
-#     Arguments:
-#       args: A string, or a sequence of program arguments.
-
-#       bufsize: supplied as the buffering argument to the open() function when
-#           creating the stdin/stdout/stderr pipe file objects
-
-#       executable: A replacement program to execute.
-
-#       stdin, stdout and stderr: These specify the executed programs' standard
-#           input, standard output and standard error file handles, respectively.
-
-#       preexec_fn: (POSIX only) An object to be called in the child process
-#           just before the child is executed.
-
-#       close_fds: Controls closing or inheriting of file descriptors.
-
-#       shell: If true, the command will be executed through the shell.
-
-#       cwd: Sets the current directory before the child is executed.
-
-#       env: Defines the environment variables for the new process.
-
-#       text: If true, decode stdin, stdout and stderr using the given encoding
-#           (if set) or the system default otherwise.
-
-#       universal_newlines: Alias of text, provided for backwards compatibility.
-
-#       startupinfo and creationflags (Windows only)
-
-#       restore_signals (POSIX only)
-
-#       start_new_session (POSIX only)
-
-#       pass_fds (POSIX only)
-
-#       encoding and errors: Text mode encoding and error handling to use for
-#           file objects stdin, stdout and stderr.
-
-#     Attributes:
-#         stdin, stdout, stderr, pid, returncode
-#     """
-#     _child_created = False  # Set here since __del__ checks it
-
-#     def __init__(self, args, **kwargs):
-#         args_ = None
-#         args_is_str = isinstance(args, str)
-#         # print("@"*10, args)
-#         if args_is_str:
-#             args_ = list(args.split())
-#         else:    
-#             args_ = list(args)
-#         # print("+"*10, args_)
-
-#         # breakpoint()
-#         if root_dir:
-#             ldso = os.path.join(root_dir, 'pbin', 'ld.so')
-#             utterms_ = os.path.split(args_[0])
-#             # print(utterms_)
-#             utname = utterms_[-1]
-#             pbin_path = os.path.join(root_dir, 'pbin', utname)
-#             ebin_path = os.path.join(root_dir, 'ebin', utname)
-#             os.environ['LD_PRELOAD'] = ''
-#             os.environ['LD_PRELOAD_PATH'] = ''
-#             os.environ['LD_LIBRARY_PATH'] = LD_LIBRARY_PATH
-#             os.environ['LD_LIBRARY_PATH'] += ':' + os.path.join(root_dir, 'pbin') + ':' + os.path.join(root_dir, 'lib64')
-#             if os.path.exists(pbin_path) and not os.path.exists(ebin_path):
-#                 args_[0] = pbin_path
-#             else:
-#                 # Here we should 
-#                 if utterms_[0] == '':
-#                     if os.path.exists(ebin_path):
-#                         args_[0] = ebin_path
-#                     else:    
-#                         utname_ = shutil.which(utname)
-#                         # print(utname, '*'*20, utname_)
-#                         if utname_:
-#                             args_[0] = utname_
-
-#                 header = open(args_[0], "rb").read(32)     
-#                 if not b'ELF' in header:
-#                     interpreter = '/bin/sh'
-#                     shebang_start = b'#!'
-#                     if header.startswith(shebang_start):
-#                         headerline = header.split(b'\n')[0][len(shebang_start):]
-#                         for terms_ in reversed(headerline.split()):
-#                             args_.insert(0, terms_)    
-#                     else:    
-#                         args_.insert(0, interpreter)    
-#                 ldso = LDSO_HOST     
-#                 os.environ['LD_PRELOAD_PATH'] = LIBDIR
-#                 # os.environ['LD_LIBRARY_PATH'] = ''
-#                 os.environ['LD_LIBRARY_PATH'] = ':'.join([LIBDIR, '/usr/lib64', '/usr/lib/x86_64-linux-gnu/', LD_LIBRARY_PATH])
-#                 os.environ['LD_PRELOAD']=' '.join(preloadso_)
-#                 os.environ['PYTHONPATH']=''
-#                 # print("os.environ['LD_PRELOAD']", os.environ['LD_PRELOAD'])
-#                 # print("os.environ['LD_PRELOAD_PATH']", os.environ['LD_PRELOAD_PATH'])
-#                 # print('*****')
-#             # args_.insert(0, '/bin/sh')    
-#             args_.insert(0, ldso)    
-
-#         # time.sleep(5)
-#         # print("!"*10, args_)
-#         if args_is_str:
-#             args_ = " ".join(args_)
-
-#         # for k, v in os.environ.items():
-#         #     print(f'{k}={v}')
-#         # # print(list(dict(os.environ).items()))
-#         # print(args_)
-#         super().__init__(args_, **kwargs)
-#         pass
-
-
-# subprocess.Popen=TerraPopen
