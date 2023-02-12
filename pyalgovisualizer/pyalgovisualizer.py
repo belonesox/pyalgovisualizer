@@ -12,18 +12,19 @@ import matplotlib
 import matplotlib.pyplot as plt
 from copy import deepcopy
 matplotlib.use('cairo')
+from pathlib import Path
 
 original_set_suspend = pydevd.PyDB.set_suspend
 
 old_cells_cache = {}
 
 
-# def default_visualization_func(frame):
-#     print('+' * 20)
-#     for var_ in frame.f_locals:
-#         value = frame.f_locals[var_]
-#         print(var_, '=>', type(value))
-#     print('-' * 20)
+def default_visualization_func(frame):
+    print('+' * 20)
+    for var_ in frame.f_locals:
+        value = frame.f_locals[var_]
+        print(var_, '=>', type(value))
+    print('-' * 20)
 
 viscallbacks = {
     # 'default': default_visualization_func
@@ -39,9 +40,15 @@ def tune_axes_for_table(ax):
     for ax_ in ax:
         tune_ax_for_table(ax_)
 
+def tune_ax_for_grid(ax):
+    ax.set_axis_on() 
+    ax.get_xaxis().set_visible(True)
+    ax.get_yaxis().set_visible(True)
+    ax.grid(color='g', linestyle=':', linewidth=0.5)
+
+
 def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
     global old_cells_cache
-    print(old_cells_cache)
 
     ax = axes[axn]
     atable = ax.table(cellText=cellText,
@@ -58,10 +65,12 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
         cell.set_text_props(ha="center")
         cell.set_text_props(backgroundcolor="white")
         if axn in old_cells_cache:
-            old_text = old_cells_cache[axn][key].get_text().get_text()
-            new_text = cell.get_text().get_text()
-            if old_text != new_text:
-                cell.set_text_props(backgroundcolor="yellow")
+            occ = old_cells_cache[axn]
+            if key in occ:
+                old_text = occ[key].get_text().get_text()
+                new_text = cell.get_text().get_text()
+                if old_text != new_text:
+                    cell.set_text_props(backgroundcolor="yellow")
 
     old_cells_cache[axn] = deepcopy(cells_)
     return atable
@@ -88,9 +97,12 @@ def table2vectors(axes, axn, locals, varnames):
     list_ = [False] * len(varnames)
     for i_, var_ in enumerate(varnames):
         if var_ in locals:
-            if type(locals[var_])==list or type(locals[var_])==str:
+            if type(locals[var_])==list:
+                list_[i_] = locals[var_]
+            elif type(locals[var_])==str:
                 list_[i_] = list(locals[var_])
-                maxlen = max(maxlen, len(locals[var_]))
+            if list_[i_]:    
+                maxlen = max(maxlen, len(list_[i_]))
     if maxlen == 0:
         return None        
 
@@ -107,6 +119,25 @@ def table2vectors(axes, axn, locals, varnames):
 
 
 
+def table2matrix(axes, axn, A):
+    return table_for_axn(axes, axn, 
+                A, 
+                list(range(A.shape[0])), 
+                list(range(A.shape[1])))
+
+
+
+def vis_stack(nrows, **kwargs):
+    # plt.subplots(nrows=nrows, ncols=1)
+    fig, axes = plt.subplots(nrows=nrows, ncols=1, **kwargs)
+    tune_axes_for_table(axes)
+    return fig, axes
+
+
+def save(fig, algfilename):
+    fig.savefig(Path(algfilename).with_suffix(".visualization.png"), dpi=150)
+
+
 
 def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pause=False, original_step_cmd=-1):
     # print('*'*40)
@@ -121,46 +152,16 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
         for pat_ in ignore_functions:
             (filename, line_number, function_name, lines, index) = inspect.getframeinfo(curframe)        
             if pat_ in function_name:
-                # print('ignored', function_name)
                 ignore = True
                 break
         if not ignore:
-            # print('ok', function_name)
             break 
         curframe = curframe.f_back
     
     if curframe:
-        # print(viscallbacks.keys())
         for k, v in viscallbacks.items():
             v(curframe)
 
-    # traceback.print_stack(curframe)
-
-    #     if 'filename'
-
-    # frame_ = sys._current_frames()[thread.ident]
-    # breakpoint()
-    # print(frame_)
-    # traceback.print_stack(frame_)
-    # for th in threading.enumerate():
-    #     print("th=", th)
-    #     # traceback.print_stack(sys._current_frames()[th.ident])
-    #     print()
-
-    # frame = info.get_topmost_frame(thread)
-    # if frame is not None:
-    #     print('111111')
-    #     print('+' * 20)
-    #     print(dir(frame))
-    #     for var_ in frame.f_locals:
-    #         value = frame.f_locals[var_]
-    #         print(var_, '=>', type(value))
-    #     # for var_ in frame.f_locals:
-    #     #     value = frame.f_locals[var_]
-    #     #     print(var_, '=>', value)
-    #     print('-' * 20)
-
-        # default_visualization(frame)
     return original_set_suspend(self, thread, stop_reason, suspend_other_threads, is_pause, original_step_cmd)
 
 
