@@ -7,10 +7,10 @@ from _pydevd_bundle.pydevd_additional_thread_info import set_additional_thread_i
 import threading
 import traceback      
 import inspect
-
+import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
-from copy import deepcopy
+from copy import deepcopy, copy
 matplotlib.use('cairo')
 from pathlib import Path
 
@@ -54,6 +54,8 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
     atable = ax.table(cellText=cellText,
                         rowLabels=rowLabels,
                         colLabels=colLabels,
+                        rowColours=["aliceblue"]*len(rowLabels),
+                        # cellColours=[["aliceblue"]*len(cellText[0])],
                         loc='center',
                 )
     atable.scale(1, 1.6) 
@@ -63,7 +65,13 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
         cell.set_linewidth(0.2)
         cell.set_linestyle("dotted")
         cell.set_text_props(ha="center")
-        cell.set_text_props(backgroundcolor="white")
+        if key[0] > 0 and key[1] > 0:
+            cell.set_text_props(backgroundcolor="white")
+
+        if key[0] == 0:
+            # cell.set_text_props(backgroundcolor="#aaaaff")
+            cell.set_facecolor("#bbbbff")            
+
         if axn in old_cells_cache:
             occ = old_cells_cache[axn]
             if key in occ:
@@ -72,7 +80,7 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
                 if old_text != new_text:
                     cell.set_text_props(backgroundcolor="yellow")
 
-    old_cells_cache[axn] = deepcopy(cells_)
+    old_cells_cache[axn] = copy(cells_)
     return atable
 
 
@@ -97,10 +105,13 @@ def table2vectors(axes, axn, locals, varnames):
     list_ = [False] * len(varnames)
     for i_, var_ in enumerate(varnames):
         if var_ in locals:
-            if type(locals[var_])==list:
-                list_[i_] = locals[var_]
-            elif type(locals[var_])==str:
-                list_[i_] = list(locals[var_])
+            lv_ = locals[var_]
+            if type(lv_)==list:
+                list_[i_] = lv_
+            elif type(lv_) in [str, tuple]:
+                list_[i_] = list(lv_)
+            elif type(lv_)==np.ndarray:
+                list_[i_] = lv_.tolist()
             if list_[i_]:    
                 maxlen = max(maxlen, len(list_[i_]))
     if maxlen == 0:
