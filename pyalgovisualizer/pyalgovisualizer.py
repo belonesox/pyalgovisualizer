@@ -84,7 +84,7 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
     return atable
 
 
-def table2scalars(axes, axn, locals, varnames):
+def table4scalars(axes, axn, locals, varnames):
     data = []
     for var_ in varnames:
         if var_ in locals and locals[var_] is not None:
@@ -97,8 +97,10 @@ def table2scalars(axes, axn, locals, varnames):
                 ['value'], 
                 varnames)
 
+# deprecated
+table2scalars = table4scalars
 
-def table2vectors(axes, axn, locals, varnames):
+def table4vectors(axes, axn, locals, varnames):
     data = []
     maxlen = 0
 
@@ -128,6 +130,43 @@ def table2vectors(axes, axn, locals, varnames):
                 varnames, 
                 list(range(maxlen)))
 
+# deprecated
+table2vectors= table4vectors
+
+
+def table4dicts(axes, axn, locals, varnames):
+    data = []
+    dict_ = [False] * len(varnames)
+    all_keys = set()
+    for i_, var_ in enumerate(varnames):
+        if var_ in locals:
+            lv_ = locals[var_]
+            if isinstance(lv_, dict):
+                dict_[i_] = lv_
+            if dict_[i_]:    
+                all_keys |= lv_.keys()
+
+    all_keys_list = sorted(all_keys)
+
+    if not all_keys_list:
+        return None
+
+    for i_, var_ in enumerate(varnames):
+        if dict_[i_]:
+            row = []
+            for k in all_keys_list:
+                if k in dict_[i_]:
+                    row.append(dict_[i_][k])     
+                else:
+                    row.append('')
+            data.append(row)
+        else:    
+            data.append([''] * len(all_keys_list))
+
+    return table_for_axn(axes, axn, 
+                data, 
+                varnames, 
+                all_keys_list)
 
 
 def table2matrix(axes, axn, A):
@@ -143,6 +182,30 @@ def vis_stack(nrows, **kwargs):
     fig, axes = plt.subplots(nrows=nrows, ncols=1, **kwargs)
     tune_axes_for_table(axes)
     return fig, axes
+
+
+def any2csscolor(alist):
+    import matplotlib.colors as mcolors
+    pallete = mcolors.CSS4_COLORS
+    ckeys = list(pallete.keys())
+    unique = list(set(alist))
+    val2id = dict([(v, k) for k, v in enumerate(unique)])
+
+    colors_ = []
+    for i_ in range(len(alist)):
+        color_ = pallete[ckeys[val2id[alist[i_]] % len(ckeys)]]
+        colors_.append(color_)
+    return colors_    
+
+def text4barh(ax, rects, texts):
+    for i, rect in enumerate(rects):
+        h_ = rect.get_height()
+        w_ = rect.get_width()
+        ax.text(rect.get_x() + w_ / 2.0, rect.get_y() + h_ / 2.0, 
+                texts[i], ha='center', va='bottom')            
+
+
+
 
 
 def save(fig, algfilename):
