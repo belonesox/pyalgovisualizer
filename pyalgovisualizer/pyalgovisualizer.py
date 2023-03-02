@@ -1,9 +1,13 @@
 """Main module."""
 
 import sys
-import pydevd
-# from _pydevd_bundle.pydevd_thread_lifecycle import suspend_all_threads, mark_thread_suspended
-from _pydevd_bundle.pydevd_additional_thread_info import set_additional_thread_info
+
+original_set_suspend = None
+if 'debugpy' in sys.modules:
+    import pydevd
+    from _pydevd_bundle.pydevd_additional_thread_info import set_additional_thread_info
+    original_set_suspend = pydevd.PyDB.set_suspend
+
 import threading
 import traceback      
 import inspect
@@ -14,10 +18,9 @@ from copy import deepcopy, copy
 matplotlib.use('cairo')
 from pathlib import Path
 
-original_set_suspend = pydevd.PyDB.set_suspend
 
 old_cells_cache = {}
-
+precision = 3
 
 def default_visualization_func(frame):
     print('+' * 20)
@@ -83,12 +86,22 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
     old_cells_cache[axn] = copy(cells_)
     return atable
 
+def value2str(v):
+    if v and isinstance(v, tuple):
+        s_ = []
+        for v_ in v:
+            s_.append(value2str(v_))  
+        return ', '.join(s_)    
+    if v and isinstance(v, float):
+        return "{:0.3f}".format(v) 
+    return str(v)
 
 def table4scalars(axes, axn, locals, varnames):
     data = []
     for var_ in varnames:
         if var_ in locals and locals[var_] is not None:
-            data.append(str(locals[var_]))
+            v = value2str(locals[var_])
+            data.append(v)
         else:    
             data.append('')
 
@@ -116,6 +129,10 @@ def table4vectors(axes, axn, locals, varnames):
                 list_[i_] = lv_.tolist()
             if list_[i_]:    
                 maxlen = max(maxlen, len(list_[i_]))
+
+            for j_, v in enumerate(list_[i_]):
+                list_[i_][j_] = value2str(v)
+
     if maxlen == 0:
         return None        
 
@@ -239,7 +256,8 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
     return original_set_suspend(self, thread, stop_reason, suspend_other_threads, is_pause, original_step_cmd)
 
 
-pydevd.PyDB.set_suspend = my_set_suspend
+if 'debugpy' in sys.modules:
+    pydevd.PyDB.set_suspend = my_set_suspend
 
 
 
