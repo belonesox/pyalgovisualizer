@@ -97,6 +97,8 @@ def value2str(v):
     return str(v)
 
 def table4scalars(axes, axn, locals, varnames):
+    if type(varnames) == str:
+        varnames = varnames.split()
     data = []
     for var_ in varnames:
         if var_ in locals and locals[var_] is not None:
@@ -113,17 +115,23 @@ def table4scalars(axes, axn, locals, varnames):
 # deprecated
 table2scalars = table4scalars
 
+from collections import deque
 def table4vectors(axes, axn, locals, varnames):
     data = []
     maxlen = 0
+    if type(varnames) == str:
+        varnames = varnames.split()
+
 
     list_ = [False] * len(varnames)
     for i_, var_ in enumerate(varnames):
         if var_ in locals:
             lv_ = locals[var_]
             if type(lv_)==list:
-                list_[i_] = lv_
-            elif type(lv_) in [str, tuple]:
+                list_[i_] = deepcopy(lv_)
+            elif type(lv_) in [str, tuple, deque]:
+                list_[i_] = list(lv_)
+            elif type(lv_).__module__ in ['itertools']:
                 list_[i_] = list(lv_)
             elif type(lv_)==np.ndarray:
                 list_[i_] = lv_.tolist()
@@ -138,7 +146,7 @@ def table4vectors(axes, axn, locals, varnames):
 
     for i_, var_ in enumerate(varnames):
         if list_[i_]:
-            data.append(list_[i_] + [''] * (maxlen  - len(locals[var_])))
+            data.append(list_[i_] + [''] * (maxlen  - len(list_[i_])))
         else:    
             data.append([''] * maxlen)
 
@@ -152,6 +160,8 @@ table2vectors= table4vectors
 
 
 def table4dicts(axes, axn, locals, varnames):
+    if type(varnames) == str:
+        varnames = varnames.split()
     data = []
     dict_ = [False] * len(varnames)
     all_keys = set()
@@ -186,11 +196,28 @@ def table4dicts(axes, axn, locals, varnames):
                 all_keys_list)
 
 
-def table2matrix(axes, axn, A):
+def table2matrix(axes, axn, A, title=''):
+    rows = 0
+    A = deepcopy(A)
+    if title: 
+        axes[axn].set_title(title)
+    if type(A) == list:
+        rows = len(A)
+        cols = max([len(row) for row in A])
+        if cols == 0:
+            return None
+        A = [list(row) + [''] * (cols - len(row)) for row in A]
+    else:    
+        rows = len(A.shape[0])
+        cols = len(A.shape[1])
+
+    if min(rows, cols)==0:    
+        return None
+
     return table_for_axn(axes, axn, 
                 A, 
-                list(range(A.shape[0])), 
-                list(range(A.shape[1])))
+                list(range(rows)), 
+                list(range(cols)))
 
 
 
@@ -200,6 +227,13 @@ def vis_stack(nrows, **kwargs):
     tune_axes_for_table(axes)
     return fig, axes
 
+
+def int2csscolor(intid):
+    import matplotlib.colors as mcolors
+    pallete = mcolors.CSS4_COLORS
+    ckeys = list(pallete.keys())
+    color_ = pallete[ckeys[intid % len(ckeys)]]
+    return color_    
 
 def any2csscolor(alist):
     import matplotlib.colors as mcolors
@@ -213,6 +247,8 @@ def any2csscolor(alist):
         color_ = pallete[ckeys[val2id[alist[i_]] % len(ckeys)]]
         colors_.append(color_)
     return colors_    
+
+
 
 def text4barh(ax, rects, texts):
     for i, rect in enumerate(rects):
@@ -254,6 +290,7 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
             v(curframe)
 
     return original_set_suspend(self, thread, stop_reason, suspend_other_threads, is_pause, original_step_cmd)
+
 
 
 if 'debugpy' in sys.modules:
