@@ -18,7 +18,7 @@ from copy import deepcopy, copy
 matplotlib.use('cairo')
 from pathlib import Path
 
-
+old_graph_cache = {}
 old_cells_cache = {}
 precision = 3
 
