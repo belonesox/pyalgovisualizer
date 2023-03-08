@@ -10,8 +10,12 @@ if 'debugpy' in sys.modules:
 
 import threading
 import traceback      
+import shutil
 import inspect
 import numpy as np
+import hashlib
+import dill
+
 import matplotlib
 import matplotlib.pyplot as plt
 from copy import deepcopy, copy
@@ -21,6 +25,39 @@ from pathlib import Path
 old_graph_cache = {}
 old_cells_cache = {}
 precision = 3
+
+visualization_stem = '.visualization'
+
+frame_name = None
+import inspect
+
+def mhash(s):
+    return hashlib.md5(s.encode('utf-8')).hexdigest()
+
+# def register(params):
+#     global frame_name
+   
+#     params_str = str(vars(params))
+#     modelname = mhash(inspect.getsource(define_model)) +  '-' + mhash(params_str)
+#     # params_str = pprint.pformat(vars(params), indent=4)
+#     # with open('params.txt', 'w', encoding='utf-8') as lf:
+#     #     lf.write(params_str)
+#     model_file = modeldbpath / (modelname + '.model')
+#     print(f'Working with model {modelname}')
+#     if model_file.exists():
+#         with open(model_file, mode='rb') as file:
+#             model = cloudpickle.load(file)        
+#             return model
+#     ttc.tic()
+#     m = ConcreteModel()
+#     def save():
+#         with open(model_file, mode='wb') as file:
+#             cloudpickle.dump(m, file)
+
+#     m.__dict__.update(params.__dict__)
+
+
+
 
 def default_visualization_func(frame):
     print('+' * 20)
@@ -196,7 +233,7 @@ def table4dicts(axes, axn, locals, varnames):
                 all_keys_list)
 
 
-def table2matrix(axes, axn, A, title=''):
+def table4matrix(axes, axn, A, title=''):
     rows = 0
     A = deepcopy(A)
     if title: 
@@ -261,10 +298,24 @@ def text4barh(ax, rects, texts):
 
 
 
-def save(fig, algfilename):
-    fig.savefig(Path(algfilename).with_suffix(".visualization.png"), dpi=150)
+current_python_filename = None
+current_python_function = None
+current_python_function_state = ''
+current_content_stem = ''
+frame2state = {}
+
+visualization_presuffix = ".visualization"
+visualization_suffixes = ['.png', '.mp4']
 
 
+def save(fig, algfilename=None, dpi=96):
+    visualization_stem_  = visualization_stem
+    if algfilename:
+        visualization_stem_ = Path(algfilename).stem + visualization_stem_
+    fig.savefig(Path(current_python_filename).parent / (visualization_stem_ + ".png"), dpi=dpi)
+    plt.close(fig)
+
+import pprint
 
 def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pause=False, original_step_cmd=-1):
     # print('*'*40)
@@ -286,8 +337,48 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
         curframe = curframe.f_back
     
     if curframe:
-        for k, v in viscallbacks.items():
-            v(curframe)
+        (filename, line_number, function_name, lines, index) = inspect.getframeinfo(curframe)        
+        global current_python_filename 
+        global current_python_function 
+        global frame2state
+
+        current_python_filename = filename
+        current_python_function = function_name
+
+        if filename not in frame2state:
+            frame2state[current_python_filename] = {}
+        if function_name not in frame2state[filename]:
+            frame2state[filename][function_name] = {
+                'hcode': mhash('\n'.join(lines))
+            }
+
+        #locals_str = pprint.pformat(curframe.f_locals, indent=4)
+
+        #print("LOCALS ", locals_str)
+        frame2state[filename][function_name]['hvars'] = hashlib.md5(dill.dumps(copy(curframe.f_locals))).hexdigest()
+        #mhash(locals_str)
+
+        current_content_stem = Path(filename).parent / '.cache' / Path(filename).name / function_name / frame2state[filename][function_name]['hcode']  / frame2state[filename][function_name]['hvars']
+
+        found = False
+        for suffix in visualization_suffixes:
+            cache_file = current_content_stem.with_suffix(suffix)
+            vis_file = Path(filename).parent / (visualization_stem + suffix)
+            if cache_file.exists():
+                shutil.copy(cache_file, vis_file)
+                found = True
+                # print(f"Found for {cache_file}!")
+
+        if not found:
+            for k, v in viscallbacks.items():
+                v(curframe)
+            for suffix in visualization_suffixes:
+                cache_file = current_content_stem.with_suffix(suffix)
+                vis_file = Path(filename).parent / (visualization_stem + suffix)
+                if vis_file.exists():
+                    # print(f"Copy {vis_file} to {cache_file}")
+                    cache_file.parent.mkdir(exist_ok=True, parents=True)
+                    shutil.copy(vis_file, cache_file)
 
     return original_set_suspend(self, thread, stop_reason, suspend_other_threads, is_pause, original_step_cmd)
 
