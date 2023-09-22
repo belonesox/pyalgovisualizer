@@ -4,7 +4,9 @@
 
 from setuptools import setup, find_packages
 
-requirements = [ ]
+requirements = [ 
+	'manim',
+]
 
 test_requirements = [ ]
 

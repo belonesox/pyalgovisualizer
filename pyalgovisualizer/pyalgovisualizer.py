@@ -21,42 +21,43 @@ import matplotlib.pyplot as plt
 from copy import deepcopy, copy
 matplotlib.use('cairo')
 from pathlib import Path
+from collections import deque
 
 old_graph_cache = {}
 old_cells_cache = {}
 precision = 3
 
+depends_on_line = False
+current_python_filename = None
+current_python_function = None
+last_lines = deque()
+current_python_function_state = ''
+current_content_stem = ''
+frame2state = {}
+
+visualization_presuffix = ".visualization"
+visualization_suffixes = ['.png', '.mp4']
+
 visualization_stem = '.visualization'
+
+
+back_functions = ['set_suspend', 'trace_dispatch'] 
+ignore_functions = ['visualization', 'visme'] 
 
 frame_name = None
 import inspect
 
+
+def get_current_line(idx):
+    global last_lines
+    if len(last_lines)>idx:
+        return last_lines[idx]
+    if len(last_lines)>0:
+        return last_lines[0]
+    return ''
+
 def mhash(s):
     return hashlib.md5(s.encode('utf-8')).hexdigest()
-
-# def register(params):
-#     global frame_name
-   
-#     params_str = str(vars(params))
-#     modelname = mhash(inspect.getsource(define_model)) +  '-' + mhash(params_str)
-#     # params_str = pprint.pformat(vars(params), indent=4)
-#     # with open('params.txt', 'w', encoding='utf-8') as lf:
-#     #     lf.write(params_str)
-#     model_file = modeldbpath / (modelname + '.model')
-#     print(f'Working with model {modelname}')
-#     if model_file.exists():
-#         with open(model_file, mode='rb') as file:
-#             model = cloudpickle.load(file)        
-#             return model
-#     ttc.tic()
-#     m = ConcreteModel()
-#     def save():
-#         with open(model_file, mode='wb') as file:
-#             cloudpickle.dump(m, file)
-
-#     m.__dict__.update(params.__dict__)
-
-
 
 
 def default_visualization_func(frame):
@@ -152,7 +153,6 @@ def table4scalars(axes, axn, locals, varnames):
 # deprecated
 table2scalars = table4scalars
 
-from collections import deque
 def table4vectors(axes, axn, locals, varnames):
     data = []
     maxlen = 0
@@ -245,8 +245,9 @@ def table4matrix(axes, axn, A, title=''):
             return None
         A = [list(row) + [''] * (cols - len(row)) for row in A]
     else:    
-        rows = len(A.shape[0])
-        cols = len(A.shape[1])
+        rows = A.shape[0]
+        cols = A.shape[1]
+        A = np.round(A, 3)
 
     if min(rows, cols)==0:    
         return None
@@ -296,17 +297,21 @@ def text4barh(ax, rects, texts):
 
 
 
+from collections import deque
+previous_vars = {}
 
 
-current_python_filename = None
-current_python_function = None
-current_python_function_state = ''
-current_content_stem = ''
-frame2state = {}
+def get_vars():
+    # if not current_python_function:
+    #     return None
+    vars_ = frame2state[current_python_filename][current_python_function]['vars']
+    return vars_    
 
-visualization_presuffix = ".visualization"
-visualization_suffixes = ['.png', '.mp4']
-
+def finish(scene, animations):
+    if animations:
+        mp4 = scene.file_writer.get_next_partial_movie_path()
+        scene.play(*animations)
+        shutil.copy(mp4, '.visualization.mp4')
 
 def save(fig, algfilename=None, dpi=96):
     visualization_stem_  = visualization_stem
@@ -315,7 +320,40 @@ def save(fig, algfilename=None, dpi=96):
     fig.savefig(Path(current_python_filename).parent / (visualization_stem_ + ".png"), dpi=dpi)
     plt.close(fig)
 
-import pprint
+def remove_nonpickled(d):
+    for k in list(d.keys()):
+        try:
+            if k in 'locs_' or not dill.pickles(d[k]):
+                del d[k]
+        except Exception as ex_:
+            del d[k]
+            print(f"*"*20)        
+            print(f"{k} cannot be tested to pickle")        
+            print(f"*"*20)        
+            # raise(ex_)
+
+def clone(toclone):
+    '''
+    Safe cloning what we can deepcopy,
+    removing non-deepcopied stuff
+    '''
+    locals_ = copy(toclone)
+    remove_non_deepcopied(locals_)    
+    return deepcopy(locals_)
+
+
+def remove_non_deepcopied(d):
+    for k in list(d.keys()):
+        try:
+            _ = deepcopy(d[k])
+        except Exception as ex_:
+            del d[k]
+
+def set_options(depends_on_line_=None):
+    global depends_on_line
+    if depends_on_line_ is not None:
+        depends_on_line = depends_on_line_
+
 
 def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pause=False, original_step_cmd=-1):
     # print('*'*40)
@@ -324,10 +362,9 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
     info = set_additional_thread_info(thread)
     # print("thread.ident=>", thread.ident)
     curframe = inspect.currentframe().f_back
-    ignore_functions = ['set_suspend', 'trace_dispatch', 'visualization'] 
     while curframe:
         ignore = False
-        for pat_ in ignore_functions:
+        for pat_ in back_functions:
             (filename, line_number, function_name, lines, index) = inspect.getframeinfo(curframe)        
             if pat_ in function_name:
                 ignore = True
@@ -335,50 +372,82 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
         if not ignore:
             break 
         curframe = curframe.f_back
-    
+
     if curframe:
         (filename, line_number, function_name, lines, index) = inspect.getframeinfo(curframe)        
-        global current_python_filename 
-        global current_python_function 
-        global frame2state
+        # print(filename, line_number, function_name)
 
-        current_python_filename = filename
-        current_python_function = function_name
+        print(filename, __file__)
+        if not (filename == __file__ or 'pydev' in filename) and function_name not in ignore_functions:
+            global current_python_filename 
+            global current_python_function 
+            global last_lines
+            global frame2state
 
-        if filename not in frame2state:
-            frame2state[current_python_filename] = {}
-        if function_name not in frame2state[filename]:
-            frame2state[filename][function_name] = {
-                'hcode': mhash('\n'.join(lines))
-            }
+            current_python_filename = filename
+            current_python_function = function_name
 
-        #locals_str = pprint.pformat(curframe.f_locals, indent=4)
+            if filename not in frame2state:
+                hash_ = 'null'
+                with open(filename) as lf:
+                    hash_ = mhash(lf.read())
+                frame2state[current_python_filename] = {
+                    'hcode': hash_ 
+                }
+            if function_name not in frame2state[filename]:
+                frame2state[filename][function_name] = {
+                    'vars': deque()
+                }
+                # print('\n'.join(lines))
 
-        #print("LOCALS ", locals_str)
-        frame2state[filename][function_name]['hvars'] = hashlib.md5(dill.dumps(copy(curframe.f_locals))).hexdigest()
-        #mhash(locals_str)
+            #print("LOCALS ", locals_str)
+            # locals_ = copy(curframe.f_locals)
+            # remove_non_deepcopied(locals_)    
+            copy_vars = clone(curframe.f_locals)
+            previous_vars = frame2state[filename][function_name]['vars']
+            # print('*'*20)
+            # print(function_name)
+            # print(copy_vars)
+            # print('01'*30)
+            # print(len(previous_vars))
+            previous_vars.appendleft(copy_vars)
+            if len(previous_vars)>3:
+                previous_vars.pop()
+            remove_nonpickled(copy_vars)    
+            frame2state[filename][function_name]['hvars'] = hashlib.md5(dill.dumps(copy_vars)).hexdigest()
 
-        current_content_stem = Path(filename).parent / '.cache' / Path(filename).name / function_name / frame2state[filename][function_name]['hcode']  / frame2state[filename][function_name]['hvars']
+            current_content_stem = Path(filename).parent / '.cache' / Path(filename).name / frame2state[filename]['hcode'] / function_name  
+            # print('08'*20)
+            if depends_on_line:
+                # print(f'depends_on_line={depends_on_line}')
+                current_content_stem /= str(line_number)
+                last_lines.appendleft('\n'.join(lines))
+                if len(last_lines)>5:
+                    last_lines.pop()
 
-        found = False
-        for suffix in visualization_suffixes:
-            cache_file = current_content_stem.with_suffix(suffix)
-            vis_file = Path(filename).parent / (visualization_stem + suffix)
-            if cache_file.exists():
-                shutil.copy(cache_file, vis_file)
-                found = True
-                # print(f"Found for {cache_file}!")
+            current_content_stem /= frame2state[filename][function_name]['hvars']
+            # print(current_content_stem)
+            # print('09'*20)
 
-        if not found:
-            for k, v in viscallbacks.items():
-                v(curframe)
+            found = False
             for suffix in visualization_suffixes:
                 cache_file = current_content_stem.with_suffix(suffix)
                 vis_file = Path(filename).parent / (visualization_stem + suffix)
-                if vis_file.exists():
-                    # print(f"Copy {vis_file} to {cache_file}")
-                    cache_file.parent.mkdir(exist_ok=True, parents=True)
-                    shutil.copy(vis_file, cache_file)
+                if cache_file.exists():
+                    shutil.copy(cache_file, vis_file)
+                    found = True
+                    #print(f"Found for {cache_file}!")
+
+            if not found:
+                for k, v in viscallbacks.items():
+                    v(curframe)
+                for suffix in visualization_suffixes:
+                    cache_file = current_content_stem.with_suffix(suffix)
+                    vis_file = Path(filename).parent / (visualization_stem + suffix)
+                    if vis_file.exists():
+                        # print(f"Copy {vis_file} to {cache_file}")
+                        cache_file.parent.mkdir(exist_ok=True, parents=True)
+                        shutil.copy(vis_file, cache_file)
 
     return original_set_suspend(self, thread, stop_reason, suspend_other_threads, is_pause, original_step_cmd)
 
