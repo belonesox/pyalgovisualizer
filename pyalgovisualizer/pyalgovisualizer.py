@@ -47,6 +47,20 @@ ignore_functions = ['visualization', 'visme']
 frame_name = None
 import inspect
 
+def set_color4cell(atable, i, j, color):
+    if not atable:
+        return
+    for (row, col), cell in atable.get_celld().items():
+        if row == i and col == j:
+            cell.set_text_props(color=color)
+
+
+
+def get_source_line4frame(frame):
+    source = inspect.getsource(frame.f_code)
+    line = source.split('\n')[frame.f_lineno-frame.f_code.co_firstlineno]
+    return line
+
 
 def get_current_line(idx):
     global last_lines
