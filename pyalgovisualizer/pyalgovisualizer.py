@@ -182,6 +182,8 @@ def table4vectors(axes, axn, locals, varnames):
                 list_[i_] = deepcopy(lv_)
             elif type(lv_) in [str, tuple, deque]:
                 list_[i_] = list(lv_)
+            elif type(lv_) in [set]:
+                list_[i_] = sorted(list(lv_))
             elif type(lv_).__module__ in ['itertools']:
                 list_[i_] = list(lv_)
             elif type(lv_)==np.ndarray:
