@@ -84,6 +84,7 @@ def get_xy4cell(atable, i, j):
 def get_row4label(atable, label):
     if not atable:
         return
+    label = str(label)
     for (row, col), cell in atable.get_celld().items():
         if col == -1:
             if cell.get_text().get_text() == label:
@@ -93,6 +94,7 @@ def get_row4label(atable, label):
 def get_col4label(atable, label):
     if not atable:
         return
+    label = str(label)
     for (row, col), cell in atable.get_celld().items():
         if row == 0:
             if cell.get_text().get_text() == label:
@@ -104,11 +106,19 @@ def arrow(  table1, row_label1, col_label1,
     from matplotlib.patches import ConnectionPatch
 
     r1_ = get_row4label(table1, row_label1)
+    if r1_ is None:
+        print(f"row_label1={row_label1} not found")
     c1_ = get_col4label(table1, col_label1)
+    if c1_ is None:
+        print(f"col_label1={col_label1} not found")
     xy1 = get_xy4cell(table1, r1_, c1_)
 
     r2_ = get_row4label(table2, row_label2)
+    if r2_ is None:
+        print(f"row_label2={row_label2} not found")
     c2_ = get_col4label(table2, col_label2)
+    if c2_ is None:
+        print(f"col_label2={col_label2} not found")
     xy2 = get_xy4cell(table2, r2_, c2_)
 
     # print("Arrow!", xy1, xy2)
