@@ -22,6 +22,7 @@ from copy import deepcopy, copy
 matplotlib.use('cairo')
 from pathlib import Path
 from collections import deque
+from functools import reduce
 
 old_graph_cache = {}
 old_cells_cache = {}
@@ -47,12 +48,76 @@ ignore_functions = ['visualization', 'visme']
 frame_name = None
 import inspect
 
+def set_current_python_filename(filename):
+    global current_python_filename
+    current_python_filename = filename
+
+
 def set_color4cell(atable, i, j, color):
     if not atable:
         return
     for (row, col), cell in atable.get_celld().items():
         if row == i and col == j:
             cell.set_text_props(color=color)
+
+def get_xy4cell(atable, i, j):
+    if not atable:
+        return
+
+    bbox = atable.get_window_extent(renderer=atable.figure.canvas.get_renderer())
+    bbox_fig = bbox.transformed(atable.axes.transAxes.inverted())        
+
+    x = bbox_fig.x0
+    y = bbox_fig.y0
+    for (row, col), cell in atable.get_celld().items():
+        if row > i and col == -1:
+            y += cell._height      
+        if row == i and col == j:
+            x += cell._width/2
+            y += cell._height/2      
+        if row == 1 and col < j:
+            if col == -1:
+                ...
+            x += cell._width      
+    return (x, y)
+
+def get_row4label(atable, label):
+    if not atable:
+        return
+    for (row, col), cell in atable.get_celld().items():
+        if col == -1:
+            if cell.get_text().get_text() == label:
+                return row
+    return None            
+
+def get_col4label(atable, label):
+    if not atable:
+        return
+    for (row, col), cell in atable.get_celld().items():
+        if row == 0:
+            if cell.get_text().get_text() == label:
+                return col
+    return None            
+
+def arrow(  table1, row_label1, col_label1,
+            table2, row_label2, col_label2, color):
+    from matplotlib.patches import ConnectionPatch
+
+    r1_ = get_row4label(table1, row_label1)
+    c1_ = get_col4label(table1, col_label1)
+    xy1 = get_xy4cell(table1, r1_, c1_)
+
+    r2_ = get_row4label(table2, row_label2)
+    c2_ = get_col4label(table2, col_label2)
+    xy2 = get_xy4cell(table2, r2_, c2_)
+
+    # print("Arrow!", xy1, xy2)
+    con = ConnectionPatch(xyA=xy1, xyB=xy2, 
+                    coordsA=table1.axes.transData, 
+                    coordsB=table2.axes.transData,
+                    color=color,
+                    arrowstyle="<-")
+    table1.figure.add_artist(con)                
 
 
 
@@ -249,7 +314,7 @@ def table4dicts(axes, axn, locals, varnames):
                 all_keys_list)
 
 
-def table4matrix(axes, axn, A, title=''):
+def table4matrix(axes, axn, A, title='', label_rows=None, label_cols=None):
     rows = 0
     A = deepcopy(A)
     if title: 
@@ -260,19 +325,34 @@ def table4matrix(axes, axn, A, title=''):
         if cols == 0:
             return None
         A = [list(row) + [''] * (cols - len(row)) for row in A]
+    elif isinstance(A, dict):
+        rows = len(A.keys())
+        if not label_rows:
+            label_rows = sorted(A.keys())
+        if not label_cols:
+            label_cols = sorted(reduce(set.union, [set(row.keys()) for row in A.values()] + [set()]))
+        cols = len(label_cols)
+        if cols == 0:
+            return None
+        A = [[A.get(row, {}).get(col, '') for col in label_cols] for row in label_rows]
     else:    
         rows = A.shape[0]
         cols = A.shape[1]
         A = np.round(A, 3)
+
+    if not label_rows:
+        label_rows = list(range(rows))
+
+    if not label_cols:
+        label_cols = list(range(cols))
 
     if min(rows, cols)==0:    
         return None
 
     return table_for_axn(axes, axn, 
                 A, 
-                list(range(rows)), 
-                list(range(cols)))
-
+                label_rows, 
+                label_cols)
 
 
 def vis_stack(nrows, **kwargs):
@@ -331,6 +411,8 @@ def finish(scene, animations):
 
 def save(fig, algfilename=None, dpi=96):
     visualization_stem_  = visualization_stem
+    # if not current_python_filename:
+    #     current_python_filename = '.'
     if algfilename:
         visualization_stem_ = Path(algfilename).stem + visualization_stem_
     fig.savefig(Path(current_python_filename).parent / (visualization_stem_ + ".png"), dpi=dpi)
@@ -452,7 +534,7 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
                 if cache_file.exists():
                     shutil.copy(cache_file, vis_file)
                     found = True
-                    #print(f"Found for {cache_file}!")
+                    print(f"Found for {cache_file}!")
 
             if not found:
                 for k, v in viscallbacks.items():
