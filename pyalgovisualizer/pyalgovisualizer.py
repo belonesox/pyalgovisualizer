@@ -56,6 +56,11 @@ def set_current_python_filename(filename):
 def set_color4cell(atable, i, j, color):
     if not atable:
         return
+    if isinstance(i, str):
+        i = get_row4label(atable, i)
+    if isinstance(j, str):
+        j = get_col4label(atable, j)
+
     for (row, col), cell in atable.get_celld().items():
         if row == i and col == j:
             cell.set_text_props(color=color)
@@ -488,7 +493,7 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
         (filename, line_number, function_name, lines, index) = inspect.getframeinfo(curframe)        
         # print(filename, line_number, function_name)
 
-        print(filename, __file__)
+        # print(filename, __file__)
         if not (filename == __file__ or 'pydev' in filename) and function_name not in ignore_functions:
             global current_python_filename 
             global current_python_function 
@@ -547,7 +552,7 @@ def my_set_suspend(self, thread, stop_reason, suspend_other_threads=False, is_pa
                 if cache_file.exists():
                     shutil.copy(cache_file, vis_file)
                     found = True
-                    print(f"Found for {cache_file}!")
+                    # print(f"Found for {cache_file}!")
 
             if not found:
                 for k, v in viscallbacks.items():
