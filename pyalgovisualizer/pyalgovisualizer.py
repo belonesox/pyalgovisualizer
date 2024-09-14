@@ -177,16 +177,21 @@ def tune_ax_for_grid(ax):
     ax.grid(color='g', linestyle=':', linewidth=0.5)
 
 
-def table_for_axn(axes, axn,  cellText, rowLabels, colLabels):
+def table_for_axn(axes, axn,  cellText, rowLabels, colLabels, offset_y=0):
     global old_cells_cache
 
     ax = axes[axn]
+    bbox=None
+    if offset_y:
+        bbox=(0, offset_y, 1, 0.1)
+
     atable = ax.table(cellText=cellText,
                         rowLabels=rowLabels,
                         colLabels=colLabels,
                         rowColours=["aliceblue"]*len(rowLabels),
                         # cellColours=[["aliceblue"]*len(cellText[0])],
                         loc='center',
+                        bbox=bbox
                 )
     atable.scale(1, 1.6) 
 
@@ -223,7 +228,7 @@ def value2str(v):
         return "{:0.3f}".format(v) 
     return str(v)
 
-def table4scalars(axes, axn, locals, varnames):
+def table4scalars(axes, axn, locals, varnames, offset_y=0):
     if type(varnames) == str:
         varnames = varnames.split()
     data = []
@@ -237,7 +242,7 @@ def table4scalars(axes, axn, locals, varnames):
     return table_for_axn(axes, axn, 
                 [data], 
                 ['value'], 
-                varnames)
+                varnames, offset_y=offset_y)
 
 # deprecated
 table2scalars = table4scalars
@@ -421,8 +426,6 @@ def finish(scene, animations):
 
 def save(fig, algfilename=None, dpi=96):
     visualization_stem_  = visualization_stem
-    # if not current_python_filename:
-    #     current_python_filename = '.'
     if algfilename:
         visualization_stem_ = Path(algfilename).stem + visualization_stem_
     fig.savefig(Path(current_python_filename).parent / (visualization_stem_ + ".png"), dpi=dpi)
