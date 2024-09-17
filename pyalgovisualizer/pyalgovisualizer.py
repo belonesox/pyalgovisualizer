@@ -410,6 +410,8 @@ def table4matrix(axes, axn, A, title='', label_rows=None, label_cols=None):
         axes[axn].set_title(title)
     if type(A) == list:
         rows = len(A)
+        if rows == 0:
+            return None
         cols = max([len(row) for row in A])
         if cols == 0:
             return None
