@@ -6,6 +6,8 @@ from setuptools import setup, find_packages
 
 requirements = [ 
 	'manim',
+	'networkx',
+	'matplotlib',
 ]
 
 test_requirements = [ ]

@@ -178,6 +178,52 @@ viscallbacks = {
     # 'default': default_visualization_func
 }    
 
+
+from collections import defaultdict
+import networkx as nx
+
+def draw_graph(G, pos, ax, node_color=None, node_size=None, node_shape=None, 
+                edge_color=None, edge_width=None, font_size=None):
+    '''
+    Drawing graph with possibility of customizing 
+    even node shapes
+    '''
+    if not node_color:
+        node_color = defaultdict(lambda: 'lightblue')
+    if not node_size:
+        node_size = defaultdict(lambda: 250)
+    if not node_shape:
+        node_shape = defaultdict(lambda: 'o')    
+    if not edge_color:
+        edge_color = 'green'
+    if not edge_width:
+        edge_width = 0.4
+    if not font_size:
+        font_size = 8    
+
+    for node in G.nodes():
+        nx.draw_networkx_nodes(
+            G,
+            pos,
+            nodelist=[node],
+            node_color=node_color[node],
+            node_size=node_size[node],
+            node_shape=node_shape[node],
+            ax=ax
+        )
+
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        edge_color=edge_color,
+        width=edge_width,
+        ax=ax,
+    )
+
+    nx.draw_networkx_labels(G, pos, font_size=font_size, ax=ax)
+    ...
+
+
 def tune_ax_for_table(ax_):
     ax_.set_axis_off() 
     ax_.get_xaxis().set_visible(False)
