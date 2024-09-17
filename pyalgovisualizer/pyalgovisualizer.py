@@ -14,6 +14,7 @@ import shutil
 import inspect
 import numpy as np
 import hashlib
+import tempfile
 import dill
 
 import matplotlib
@@ -181,6 +182,14 @@ def tune_ax_for_table(ax_):
     ax_.set_axis_off() 
     ax_.get_xaxis().set_visible(False)
     ax_.get_yaxis().set_visible(False)
+
+
+def tune_ax_for_graph(ax_):
+    ax_.get_xaxis().set_visible(True)
+    ax_.get_yaxis().set_visible(True)
+    ax_.set_axis_on() 
+
+
 
 def tune_axes_for_table(ax):
     plt.box(on=False)
@@ -445,8 +454,13 @@ def save(fig, algfilename=None, dpi=96):
     visualization_stem_  = visualization_stem
     if algfilename:
         visualization_stem_ = Path(algfilename).stem + visualization_stem_
-    fig.savefig(Path(current_python_filename).parent / (visualization_stem_ + ".png"), dpi=dpi)
-    plt.close(fig)
+    with tempfile.TemporaryDirectory() as tmp:
+        deploy_ = Path(tmp) / (tempfile.gettempprefix() + '-visualization.png')
+        prod_ = Path(current_python_filename).parent / (visualization_stem_ + ".png")    
+        fig.savefig(deploy_, dpi=dpi)
+        plt.close(fig)
+        # print(f"Move {deploy_} to {prod_}")
+        shutil.move(deploy_, prod_)
 
 def remove_nonpickled(d):
     for k in list(d.keys()):
