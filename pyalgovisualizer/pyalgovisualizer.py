@@ -330,6 +330,8 @@ def table4vectors(axes, axn, locals, varnames):
     for i_, var_ in enumerate(varnames):
         if var_ in locals:
             lv_ = locals[var_]
+            if lv_ is None:
+                lv_ = []
             if type(lv_)==list:
                 list_[i_] = deepcopy(lv_)
             elif type(lv_) in [str, tuple, deque]:
