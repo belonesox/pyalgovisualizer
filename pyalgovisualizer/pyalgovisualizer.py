@@ -62,6 +62,7 @@ def set_color4cell(atable, i, j, color):
     if isinstance(j, str):
         j = get_col4label(atable, j)
 
+    # print('*'*10, i, j)
     for (row, col), cell in atable.get_celld().items():
         if row == i and col == j:
             cell.set_text_props(color=color)
@@ -183,7 +184,7 @@ from collections import defaultdict
 import networkx as nx
 
 def draw_graph(G, pos, ax, node_color=None, node_size=None, node_shape=None, 
-                edge_color=None, edge_width=None, font_size=None):
+                edge_labels=None, edge_color=None, edge_width=None, font_size=None):
     '''
     Drawing graph with possibility of customizing 
     even node shapes
@@ -220,7 +221,9 @@ def draw_graph(G, pos, ax, node_color=None, node_size=None, node_shape=None,
         ax=ax,
     )
 
-    nx.draw_networkx_labels(G, pos, font_size=font_size, ax=ax)
+    nx.draw_networkx_labels(G, pos, ax=ax)
+    if edge_labels:
+        nx.draw_networkx_edge_labels(G, pos, edge_labels=edge_labels, font_size=font_size, ax=ax)
     ...
 
 
@@ -249,7 +252,7 @@ def tune_ax_for_grid(ax):
     ax.grid(color='g', linestyle=':', linewidth=0.5)
 
 
-def table_for_axn(axes, axn,  cellText, rowLabels, colLabels, offset_y=0):
+def table_for_axn(axes, axn,  cellText, rowLabels, colLabels, offset_y=0, loc='center'):
     global old_cells_cache
 
     ax = axes[axn]
@@ -262,7 +265,7 @@ def table_for_axn(axes, axn,  cellText, rowLabels, colLabels, offset_y=0):
                         colLabels=colLabels,
                         rowColours=["aliceblue"]*len(rowLabels),
                         # cellColours=[["aliceblue"]*len(cellText[0])],
-                        loc='center',
+                        loc=loc,
                         bbox=bbox
                 )
     atable.scale(1, 1.6) 
@@ -300,7 +303,7 @@ def value2str(v):
         return "{:0.3f}".format(v) 
     return str(v)
 
-def table4scalars(axes, axn, locals, varnames, offset_y=0):
+def table4scalars(axes, axn, locals, varnames, offset_y=0, loc='center'):
     if type(varnames) == str:
         varnames = varnames.split()
     data = []
@@ -314,7 +317,7 @@ def table4scalars(axes, axn, locals, varnames, offset_y=0):
     return table_for_axn(axes, axn, 
                 [data], 
                 ['value'], 
-                varnames, offset_y=offset_y)
+                varnames, offset_y=offset_y, loc=loc)
 
 # deprecated
 table2scalars = table4scalars
